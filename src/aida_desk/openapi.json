@@ -571,6 +571,40 @@
         }
       }
     },
+    "/api/v1/admin/monitor": {
+      "get": {
+        "summary": "Monitor",
+        "description": "Runs, failures, latency, tokens and cost by window, day, model and\nchannel; incidents by severity and class; what is in flight; memory\nand git as structure; every source's status; and the operator's\naudit trail on this tenant \u2014 who looked at what, and why.",
+        "operationId": "monitor_api_v1_admin_monitor_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/monitor/rows": {
+      "get": {
+        "summary": "Monitor Rows",
+        "description": "The rows behind the numbers: runs with question, caller, exit, model\nand capture; incidents with detail; what is in flight. Your own\ntenant, your own rows \u2014 no audit row, that trail is for us.",
+        "operationId": "monitor_rows_api_v1_admin_monitor_rows_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/status": {
       "get": {
         "summary": "Status",

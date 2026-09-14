@@ -24,6 +24,12 @@ Both stay in the browser tab.
   them verified and commits them in your workspace under your name.
   Audit lists what a reader still flags; contradictions runs a judge over
   the whole corpus and lists pairs that cannot both be followed.
+- **Monitoring**: your tenant's own numbers, the same collection our
+  operators see for it: runs, failures, latency, tokens and cost by
+  window, day, model and channel; the recent runs with their questions;
+  incidents; what is in flight; memory and sources as structure; the
+  workspace's git state; and the operator's trail on your tenant, every
+  time simtree read your rows, with the reason given.
 - **Status**: the workspace's git state and what awaits ratification.
 
 ## The API
@@ -44,6 +50,8 @@ headers: `Authorization: Bearer <admin key>` and `X-Actor: <name>`.
 | `GET  /api/v1/admin/memory/audit` | entries a reader flags; `pii` is the tier that matters |
 | `POST /api/v1/admin/memory/contradictions` | a judge run over the corpus; minutes |
 | `GET  /api/v1/status` | workspace state |
+| `GET  /api/v1/admin/monitor?days=` | the tenant's collection: summary, incidents, in flight, memory, git, sources, the operator's trail |
+| `GET  /api/v1/admin/monitor/rows?days=&limit=&what=` | the rows behind it: runs, incidents, in flight |
 | `POST /api/v1/conversations/{uid}/messages` `{text, actor, client_msg_id}` | ask |
 | `GET  /api/v1/conversations/{uid}/events?after=&epoch=&wait_s=` | the answers, long-polled |
 

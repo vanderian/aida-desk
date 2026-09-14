@@ -28,7 +28,7 @@ pre{background:var(--panel2);padding:10px;border-radius:4px;font-size:12px;overf
 </head>
 <body>
 <header><h1>aida desk</h1>
-  <nav id="nav"><a href="#ask" data-s="ask">Ask</a><a href="#memory" data-s="memory">Memory</a><a href="#sources" data-s="sources">Sources</a><a href="#status" data-s="status">Status</a><a href="#api" data-s="api">API</a></nav>
+  <nav id="nav"><a href="#ask" data-s="ask">Ask</a><a href="#memory" data-s="memory">Memory</a><a href="#sources" data-s="sources">Sources</a><a href="#monitor" data-s="monitor">Monitoring</a><a href="#status" data-s="status">Status</a><a href="#api" data-s="api">API</a></nav>
   <span class="right" id="who">not signed in</span>
   <button class="quiet" id="theme" type="button" title="theme">◐</button>
 </header>
@@ -78,6 +78,18 @@ pre{background:var(--panel2);padding:10px;border-radius:4px;font-size:12px;overf
     <p class="foot" style="margin:6px 0 0">Stored in your workspace's environment file on the tenant, never in git, never shown again. The engine reads it on every run; then verify.</p></div>
 </section>
 
+<section id="monitor">
+  <div class="card"><div class="row"><h2 style="margin:0">Monitoring</h2><span class="foot" id="montaken"></span><span class="right row"><label style="margin:0">window</label><select id="mondays"><option value="1">1 d</option><option value="7">7 d</option><option value="30" selected>30 d</option><option value="90">90 d</option></select></span></div>
+    <div id="monstats" class="row" style="margin-top:10px"></div></div>
+  <div class="card"><h2>By day</h2><table id="monday"><thead><tr><th>day</th><th>runs</th><th>failures</th><th>p95</th><th>tokens in / out</th><th>cost</th></tr></thead><tbody></tbody></table></div>
+  <div class="card"><h2>By model and by channel</h2><div class="row" style="align-items:flex-start"><table id="monmodel" style="flex:1"><thead><tr><th>model</th><th>runs</th><th>failures</th><th>p95</th><th>cost</th></tr></thead><tbody></tbody></table>
+    <table id="monchannel" style="flex:1"><thead><tr><th>channel</th><th>runs</th><th>failures</th><th>p95</th></tr></thead><tbody></tbody></table></div></div>
+  <div class="card"><h2>Recent runs</h2><table id="monruns"><thead><tr><th>when</th><th>kind</th><th>caller</th><th>exit</th><th>took</th><th>model</th><th>question</th></tr></thead><tbody></tbody></table></div>
+  <div class="card"><h2>Incidents and in flight</h2><div id="monincidents"></div><div id="moninflight" style="margin-top:8px"></div></div>
+  <div class="card"><h2>Memory, sources, workspace, and who looked</h2><div id="monrest" class="row" style="align-items:flex-start"></div>
+    <p class="foot" style="margin:8px 0 0">"who looked" is the operator's trail on your tenant: every time simtree read your rows, with the reason given.</p></div>
+</section>
+
 <section id="status"><div class="card"><h2>Status</h2><pre id="statusout">…</pre></div></section>
 
 <section id="api"><div class="card"><h2>The API this page uses</h2>
@@ -88,6 +100,7 @@ POST /api/v1/admin/memory/add    {text, page?}
 GET  /api/v1/admin/memory/pages/{page}/review    POST /api/v1/admin/memory/pages/{page}/ratify
 GET  /api/v1/admin/memory/audit                  POST /api/v1/admin/memory/contradictions
 GET  /api/v1/admin/memory/history                GET  /api/v1/status
+GET  /api/v1/admin/monitor?days=                 GET  /api/v1/admin/monitor/rows?days=&amp;limit=&amp;what=
 GET  /api/v1/admin/channels                      GET  /api/v1/admin/sources
 POST /api/v1/admin/sources {name, host, port, zip (base64), callers}
 POST /api/v1/admin/sources/{name}/secret {password}    PUT /api/v1/admin/sources/{name}/callers {callers}
@@ -109,7 +122,7 @@ const convId = () => 'desk-' + S.actor.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 function show(name) {
   document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === name));
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.s === name));
-  if (name === 'memory') loadMemory(); if (name === 'sources') loadSources(); if (name === 'status') loadStatus(); if (name === 'ask') startPoll();
+  if (name === 'memory') loadMemory(); if (name === 'sources') loadSources(); if (name === 'monitor') loadMonitor(); if (name === 'status') loadStatus(); if (name === 'ask') startPoll();
 }
 document.querySelectorAll('#nav a').forEach(a => a.onclick = ev => { ev.preventDefault(); if (!S.key) return; location.hash = a.dataset.s; show(a.dataset.s); });
 document.getElementById('theme').onclick = () => { document.documentElement.classList.toggle('light'); try { localStorage.setItem('aida.theme', document.documentElement.classList.contains('light') ? 'light' : 'dark'); } catch (_) {} };
@@ -201,6 +214,36 @@ async function loadSources() {
     try { const r = await api('POST', '/api/v1/admin/sources', {name: f.name.value, host: f.host.value, port: f.port.value, zip: b64, callers}); out(true, `registered ${e(r.name)} — ${e(r.status)}; now store the password and verify`); f.reset(); loadSources(); } catch (err) { out(false, e(err.message)); } };
   document.getElementById('srcsecret').onsubmit = async ev => { ev.preventDefault(); const f = ev.target;
     try { const r = await api('POST', `/api/v1/admin/sources/${f.name.value}/secret`, {password: f.password.value}); f.password.value = ''; out(true, `stored as ${e(r.env)} — now verify`); } catch (err) { out(false, e(err.message)); } };
+}
+// ---- monitoring ----
+const fmtS = v => v == null ? '—' : (v < 60 ? v.toFixed(1) + ' s' : (v / 60).toFixed(1) + ' min');
+const fmtN = v => v == null ? '—' : Number(v).toLocaleString();
+const fmtUsd = (v, c) => v == null ? '—' : ('$' + Number(v).toFixed(v < 1 ? 4 : 2) + (c === false ? ' (partial)' : ''));
+const stat = (label, value, foot) => `<div style="flex:1;min-width:140px;background:var(--panel2);border-radius:6px;padding:10px 12px"><div class="foot">${e(label)}</div><div style="font-size:22px">${value}</div>${foot ? `<div class="foot">${foot}</div>` : ''}</div>`;
+async function loadMonitor() {
+  const days = document.getElementById('mondays').value;
+  document.getElementById('mondays').onchange = loadMonitor;
+  let m, rows;
+  try { [m, rows] = await Promise.all([api('GET', `/api/v1/admin/monitor?days=${days}`), api('GET', `/api/v1/admin/monitor/rows?days=${days}&limit=50&what=runs,incidents,inflight`)]); }
+  catch (err) { document.getElementById('monstats').innerHTML = `<div class="msg bad">${e(err.message)}</div>`; return; }
+  const s = m.summary || {}, t = s.totals || {}, d = s.last_24h || {};
+  document.getElementById('montaken').textContent = `as of ${(m.taken_utc || '').slice(0, 16)} UTC · ${days} d window`;
+  document.getElementById('monstats').innerHTML = stat('runs', fmtN(t.runs), `${fmtN(d.runs)} in the last 24 h · ${fmtN(s.all_time_runs)} all time`) + stat('failures', fmtN(t.failures), `${fmtN(d.failures)} in the last 24 h`)
+    + stat('p95', fmtS(t.p95_s), `p50 ${fmtS(t.p50_s)}`) + stat('tokens', `${fmtN(t.in_tokens)} / ${fmtN(t.out_tokens)}`, `cache hit ${t.cache_hit_rate == null ? '—' : Math.round(t.cache_hit_rate * 100) + '%'}`)
+    + stat('cost', fmtUsd(t.cost_usd, t.cost_complete), `prices read ${e(s.prices_read_on || '—')}`) + stat('in flight', fmtN((m.in_flight || []).length), s.last_run_utc ? `last run ${e(s.last_run_utc.slice(0, 16))}` : 'no run yet');
+  document.querySelector('#monday tbody').innerHTML = (s.by_day || []).slice(-31).reverse().map(x => `<tr><td>${e(x.label)}</td><td>${fmtN(x.runs)}</td><td>${fmtN(x.failures)}</td><td>${fmtS(x.p95_s)}</td><td>${fmtN(x.in_tokens)} / ${fmtN(x.out_tokens)}</td><td>${fmtUsd(x.cost_usd, x.cost_complete)}</td></tr>`).join('') || '<tr><td colspan="6" class="foot">nothing in this window</td></tr>';
+  document.querySelector('#monmodel tbody').innerHTML = (s.by_model || []).map(x => `<tr><td>${e(x.label)}</td><td>${fmtN(x.runs)}</td><td>${fmtN(x.failures)}</td><td>${fmtS(x.p95_s)}</td><td>${fmtUsd(x.cost_usd, x.cost_complete)}</td></tr>`).join('') || '<tr><td colspan="5" class="foot">—</td></tr>';
+  document.querySelector('#monchannel tbody').innerHTML = (s.by_channel || []).map(x => `<tr><td>${e(x.label)}</td><td>${fmtN(x.runs)}</td><td>${fmtN(x.failures)}</td><td>${fmtS(x.p95_s)}</td></tr>`).join('') || '<tr><td colspan="4" class="foot">—</td></tr>';
+  document.querySelector('#monruns tbody').innerHTML = (rows.runs || []).map(r => `<tr><td>${e((r.started_utc || '').slice(0, 16))}</td><td>${e(r.kind)}</td><td>${e(r.caller)}</td><td>${e(r.exit_code)}</td><td>${fmtS(r.elapsed_s)}</td><td>${e(r.model)}</td><td>${e(r.question)}</td></tr>`).join('') || '<tr><td colspan="7" class="foot">no runs in this window</td></tr>';
+  const inc = m.incidents || {};
+  document.getElementById('monincidents').innerHTML = `<div class="row">${Object.entries(inc.by_severity || {}).map(([k, v]) => `<span class="pill ${k === 'critical' ? 'bad' : 'warn'}">${e(k)} ${v}</span>`).join('') || '<span class="foot">no incidents in this window</span>'}</div>`
+    + ((rows.incidents || []).length ? `<table><tr><th>when</th><th>severity</th><th>class</th><th>detail</th></tr>${rows.incidents.map(i => `<tr><td>${e((i.ts || '').slice(0, 16))}</td><td>${e(i.severity)}</td><td>${e(i.class)}</td><td>${e(i.detail)}</td></tr>`).join('')}</table>` : '');
+  document.getElementById('moninflight').innerHTML = (rows.in_flight || []).length ? `<table><tr><th>age</th><th>mode</th><th>caller</th><th>question</th></tr>${rows.in_flight.map(r => `<tr><td>${fmtS(r.age_s)}</td><td>${e(r.mode)}</td><td>${e(r.caller)}</td><td>${e(r.question)}</td></tr>`).join('')}</table>` : '<span class="foot">nothing in flight</span>';
+  const mem = m.memory || {}, g = m.git || {}, a = m.audit || {};
+  document.getElementById('monrest').innerHTML = stat('memory', `${fmtN(mem.pages)} pages`, `${fmtN(mem.entries_verified)} verified · ${fmtN(mem.entries_agent)} unverified · ${fmtN(mem.proposals)} awaiting review`)
+    + stat('sources', `${(m.sources || []).filter(x => x.offered).length} / ${(m.sources || []).length} offered`, (m.sources || []).map(x => `${e(x.name)}: ${x.offered ? 'offered' : e((x.verify && x.verify.present) ? 'not offered' : 'not verified')}`).join(' · ') || 'none registered')
+    + stat('workspace', g.error ? e(g.error) : `${e(g.branch)} ${g.dirty ? '· dirty' : '· clean'}`, g.last ? `${e(g.last.subject)} · ${e((g.last.at || '').slice(0, 10))}` : '')
+    + stat('who looked', `${fmtN(a.entries)} time(s)`, (a.latest || []).map(x => `${e((x.ts_utc || '').slice(0, 10))} ${e(x.operator)}: ${e(x.reason)}`).join('<br>') || 'nobody yet');
 }
 async function loadStatus() { try { const s = await api('GET', '/api/v1/status'); document.getElementById('statusout').textContent = JSON.stringify(s, null, 2); } catch (err) { document.getElementById('statusout').textContent = err.message; } }
 
