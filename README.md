@@ -72,6 +72,10 @@ headers: `Authorization: Bearer <admin key>` and `X-Actor: <name>`.
 | `GET  /api/v1/admin/captures/{path}` | one of your captures, for history |
 | `GET  /api/v1/conversations/{uid}/events?after=&epoch=&wait_s=` | the answers, long-polled |
 
+A wrong key is counted per client address: past the tenant's limit, ten
+in ten minutes by default, every request from that address is refused
+with 429 until the window passes, right key or not.
+
 The full document is `openapi.json` here and at `/api/v1/openapi.json`
 on your tenant, with interactive docs at `/api/v1/docs`.
 
