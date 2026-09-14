@@ -1,6 +1,6 @@
 [project]
 name = "aida-desk"
-version = "0.14.2"
+version = "0.15.0"
 description = "aida desk: the client's page on their tenant — conversation, memory review and ratification, sources, monitoring — and the reference client for the tenant API"
 requires-python = ">=3.12"
 dependencies = []
