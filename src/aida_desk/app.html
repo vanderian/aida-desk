@@ -179,9 +179,17 @@ document.getElementById('signform').onsubmit = async ev => {
 // message events carry thread_ref (<slug>-q<n>); a user's message and the
 // status lines carry no thread, so they are attached by reply_to (the
 // answer quotes the message it answers) or by the thread we posted into.
-const T = { byId: new Map(), order: [], current: null, pending: new Map(), userThread: new Map() };
+const T = { byId: new Map(), order: [], current: null, pending: new Map(), userThread: new Map(), eventThread: new Map() };
 function thread(id) { if (!T.byId.has(id)) { T.byId.set(id, {id, items: [], last: 0, title: ''}); T.order.push(id); } return T.byId.get(id); }
 function place(ev) {
+  if (ev.type === 'status' && ev.edit_of) {
+    // an edit of the status line names the event it edits, nothing else:
+    // it belongs where that event is, or nowhere
+    const tid0 = T.eventThread.get(ev.edit_of); if (!tid0) return null;
+    const t0 = T.byId.get(tid0); const i = t0.items.findIndex(x => x.id === ev.edit_of);
+    if (i >= 0) t0.items[i] = {...t0.items[i], text: ev.text};
+    t0.last = ev.seq || t0.last; return t0;
+  }
   let tid = ev.thread_ref || null;
   if (ev.type === 'user') tid = T.userThread.get(ev.msg_ref) || T.userThread.get(ev.client_msg_id) || null;
   if (!tid && ev.reply_to) tid = T.userThread.get(ev.reply_to) || null;
@@ -190,11 +198,10 @@ function place(ev) {
   if (ev.type === 'message' && ev.reply_to) {
     // the answer names the thread: fold the pending thread of its question into it
     const pend = 'pending-' + ev.reply_to;
-    if (T.byId.has(pend) && pend !== tid) { const p = T.byId.get(pend); const t = thread(tid); t.items.push(...p.items); T.byId.delete(pend); T.order = T.order.filter(x => x !== pend); if (T.current === pend) T.current = tid; p.items.forEach(x => { if (x.type === 'user') T.userThread.set(x.msg_ref, tid); }); }
+    if (T.byId.has(pend) && pend !== tid) { const p = T.byId.get(pend); const t = thread(tid); t.items.push(...p.items); if (!t.title) t.title = p.title; T.byId.delete(pend); T.order = T.order.filter(x => x !== pend); if (T.current === pend) T.current = tid; p.items.forEach(x => { T.eventThread.set(x.id, tid); if (x.type === 'user') T.userThread.set(x.msg_ref, tid); }); }
   }
   const t = thread(tid);
-  if (ev.type === 'status' && ev.edit_of) { const i = t.items.findIndex(x => x.id === ev.edit_of); if (i >= 0) { t.items[i] = {...t.items[i], text: ev.text}; return t; } }
-  t.items.push(ev); t.last = ev.seq || t.last;
+  t.items.push(ev); t.last = ev.seq || t.last; T.eventThread.set(ev.id, t.id);
   if (!t.title && ev.type === 'user') t.title = ev.text;
   return t;
 }
@@ -247,9 +254,9 @@ async function startPoll() {
   while (S.polling && S.key) {
     try {
       const r = await api('GET', `/api/v1/conversations/${convId()}/events?after=${S.after}&epoch=${encodeURIComponent(S.epoch)}&wait_s=20`);
-      if (r.reset) { T.byId.clear(); T.order = []; T.userThread.clear(); S.after = 0; }
+      if (r.reset) { T.byId.clear(); T.order = []; T.userThread.clear(); T.eventThread.clear(); S.after = 0; }
       S.epoch = r.epoch;
-      for (const ev of r.events) { const t = place(ev); if (ev.type === 'user' && !T.current) T.current = t.id; }
+      for (const ev of r.events) { const t = place(ev); if (t && ev.type === 'user' && !T.current) T.current = t.id; }
       if (r.events.length) { const newest = [...T.byId.values()].sort((a, b) => b.last - a.last)[0]; if (newest && (!T.current || !T.byId.has(T.current))) T.current = newest.id; renderThreads(); renderThread(); renderInFlight(); }
       S.after = r.next;
     } catch (err) { await new Promise(res => setTimeout(res, 3000)); }
