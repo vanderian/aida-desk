@@ -49,7 +49,7 @@ headers: `Authorization: Bearer <admin key>` and `X-Actor: <name>`.
 | `GET  /api/v1/admin/memory/history` | past ratifications |
 | `GET  /api/v1/admin/memory/audit` | entries a reader flags; `pii` is the tier that matters |
 | `POST /api/v1/admin/memory/contradictions` | a judge run over the corpus; minutes |
-| `GET  /api/v1/status` | workspace state |
+| `GET  /api/v1/admin/status` | workspace state |
 | `GET  /api/v1/admin/monitor?days=` | the tenant's collection: summary, incidents, in flight, memory, git, sources, the operator's trail |
 | `GET  /api/v1/admin/monitor/rows?days=&limit=&what=` | the rows behind it: runs, incidents, in flight |
 | `POST /api/v1/conversations/{uid}/messages` `{text, actor, client_msg_id}` | ask |

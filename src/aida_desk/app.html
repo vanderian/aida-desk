@@ -99,7 +99,7 @@ POST /api/v1/admin/memory/apply  {ids, page?}    POST /api/v1/admin/memory/drop 
 POST /api/v1/admin/memory/add    {text, page?}
 GET  /api/v1/admin/memory/pages/{page}/review    POST /api/v1/admin/memory/pages/{page}/ratify
 GET  /api/v1/admin/memory/audit                  POST /api/v1/admin/memory/contradictions
-GET  /api/v1/admin/memory/history                GET  /api/v1/status
+GET  /api/v1/admin/memory/history                GET  /api/v1/admin/status
 GET  /api/v1/admin/monitor?days=                 GET  /api/v1/admin/monitor/rows?days=&amp;limit=&amp;what=
 GET  /api/v1/admin/channels                      GET  /api/v1/admin/sources
 POST /api/v1/admin/sources {name, host, port, zip (base64), callers}
@@ -245,7 +245,7 @@ async function loadMonitor() {
     + stat('workspace', g.error ? e(g.error) : `${e(g.branch)} ${g.dirty ? '· dirty' : '· clean'}`, g.last ? `${e(g.last.subject)} · ${e((g.last.at || '').slice(0, 10))}` : '')
     + stat('who looked', `${fmtN(a.entries)} time(s)`, (a.latest || []).map(x => `${e((x.ts_utc || '').slice(0, 10))} ${e(x.operator)}: ${e(x.reason)}`).join('<br>') || 'nobody yet');
 }
-async function loadStatus() { try { const s = await api('GET', '/api/v1/status'); document.getElementById('statusout').textContent = JSON.stringify(s, null, 2); } catch (err) { document.getElementById('statusout').textContent = err.message; } }
+async function loadStatus() { try { const s = await api('GET', '/api/v1/admin/status'); document.getElementById('statusout').textContent = JSON.stringify(s, null, 2); } catch (err) { document.getElementById('statusout').textContent = err.message; } }
 
 if (S.key) { api('GET', '/api/v1/admin/whoami').then(w => { document.getElementById('who').textContent = w.caller + ' · ' + w.role; show(location.hash.slice(1) || 'ask'); }).catch(() => { S.key = ''; sessionStorage.clear(); }); }
 </script>
