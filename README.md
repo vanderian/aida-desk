@@ -14,8 +14,16 @@ Both stay in the browser tab.
 
 ## What is on the page
 
-- **Ask**: a conversation with the engine over your data. Answers arrive
-  as the engine works; a report opens as a link.
+- **Ask**: your questions as threads. A new question opens a thread;
+  the answer comes with its report as a button and the engine's
+  suggested follow-ups as the questions they are. A follow-up, clicked or
+  typed at the bottom, stays in its thread. One question at a time per
+  thread, and a cap on unanswered questions per conversation, enforced by
+  the tenant, so a page cannot flood the engine.
+- **Research**: a deeper run in several passes, with the number of passes
+  chosen up to the deployment's limit. It opens a thread like any question.
+- **History**: your past questions from the labor ledger, each opening
+  the answer as the engine wrote it.
 - **Memory**: what the engine learned about the *shape* of your data,
   never a value. Proposals wait for your review with an advisory
   `content?` flag from a reader and the page the judge suggests. Apply
@@ -59,7 +67,9 @@ headers: `Authorization: Bearer <admin key>` and `X-Actor: <name>`.
 | `DELETE /api/v1/admin/integrations/{name}` | revoke it |
 | `GET  /api/v1/admin/monitor?days=` | the tenant's collection: summary, incidents, in flight, memory, git, sources, the operator's trail |
 | `GET  /api/v1/admin/monitor/rows?days=&limit=&what=` | the rows behind it: runs, incidents, in flight |
-| `POST /api/v1/conversations/{uid}/messages` `{text, actor, client_msg_id}` | ask |
+| `POST /api/v1/conversations/{uid}/messages` `{text, actor, client_msg_id, thread_ref?, mode?, loop?}` | ask; `thread_ref` continues a thread, `mode: dig` with `loop` is research. 409 when the thread has a question in flight, 429 at the conversation's cap. No commands: a slash or a prefix is refused |
+| `GET  /api/v1/conversations/{uid}/inflight` | what is running now, and the limits |
+| `GET  /api/v1/admin/captures/{path}` | one of your captures, for history |
 | `GET  /api/v1/conversations/{uid}/events?after=&epoch=&wait_s=` | the answers, long-polled |
 
 The full document is `openapi.json` here and at `/api/v1/openapi.json`

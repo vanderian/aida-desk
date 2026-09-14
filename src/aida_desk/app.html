@@ -34,7 +34,7 @@ pre{background:var(--panel2);padding:10px;border-radius:4px;font-size:12px;overf
 </head>
 <body>
 <header><h1>aida desk</h1>
-  <nav id="nav"><a href="#ask" data-s="ask">Ask</a><a href="#memory" data-s="memory">Memory</a><a href="#sources" data-s="sources">Sources</a><a href="#monitor" data-s="monitor">Monitoring</a><a href="#settings" data-s="settings">Settings</a><a href="#status" data-s="status">Status</a><a href="#api" data-s="api">API</a></nav>
+  <nav id="nav"><a href="#ask" data-s="ask">Ask</a><a href="#research" data-s="research">Research</a><a href="#history" data-s="history">History</a><a href="#memory" data-s="memory">Memory</a><a href="#sources" data-s="sources">Sources</a><a href="#monitor" data-s="monitor">Monitoring</a><a href="#settings" data-s="settings">Settings</a><a href="#status" data-s="status">Status</a><a href="#api" data-s="api">API</a></nav>
   <span class="right" id="who">not signed in</span>
   <button class="quiet" id="theme" type="button" title="theme">◐</button>
 </header>
@@ -48,13 +48,28 @@ pre{background:var(--panel2);padding:10px;border-radius:4px;font-size:12px;overf
 
 <section id="ask"><div class="ask">
   <aside class="card"><h2>Questions</h2>
-    <form id="askform"><input name="text" placeholder="a new question about your data" autocomplete="off" data-1p-ignore required><div class="row" style="margin-top:8px"><button>Ask</button></div></form>
+    <form id="askform"><input name="text" placeholder="a new question about your data" autocomplete="off" data-1p-ignore required><div class="row" style="margin-top:8px"><button id="askbtn">Ask</button><span class="foot" id="inflight"></span></div></form>
     <div class="threads" id="threads" style="margin-top:12px"></div>
     <div class="foot" style="margin-top:8px">conversation <code id="convid"></code></div></aside>
   <div class="card"><h2 id="threadtitle">Pick a question, or ask one</h2>
     <div class="thread" id="thread"></div>
     <form id="followform" class="row" style="margin-top:10px" hidden><input name="text" placeholder="a follow-up in this thread" autocomplete="off" data-1p-ignore style="flex:1" required><button>Follow up</button></form>
     <div class="foot" id="threadfoot"></div></div>
+</div></section>
+
+<section id="research"><div class="card" style="max-width:720px">
+  <h2>Research</h2>
+  <p class="foot" style="margin:0 0 8px">A deeper run: the engine explores the question in several passes, each building on the last, and synthesises at the end. It opens a thread like any question; the findings arrive as it works. Costs more, takes longer.</p>
+  <form id="digform"><label>the question</label><textarea name="text" rows="3" autocomplete="off" data-1p-ignore required placeholder="why did churn rise in the spring, and where?"></textarea>
+    <div class="row"><div style="flex:1"><label>passes <span class="foot" id="digmax"></span></label><select name="loop" id="digloop"></select></div>
+      <div style="flex:2"><label>&nbsp;</label><div class="foot">the default is the deployment's; more passes cover more ground and cost more</div></div></div>
+    <div class="row" style="margin-top:10px"><button>Start the research</button><span class="foot" id="digmsg"></span></div></form>
+</div></section>
+
+<section id="history"><div class="card">
+  <div class="row"><h2 style="margin:0">History</h2><span class="foot">your past questions on this tenant, from the labor ledger</span><span class="right row"><label style="margin:0">window</label><select id="histdays"><option value="7">7 d</option><option value="30" selected>30 d</option><option value="90">90 d</option><option value="365">1 y</option></select></span></div>
+  <table id="hist" style="margin-top:10px"><thead><tr><th>when</th><th>kind</th><th>question</th><th>took</th><th>exit</th><th></th></tr></thead><tbody></tbody></table>
+  <div id="histview"></div>
 </div></section>
 
 <section id="memory">
@@ -127,7 +142,9 @@ GET  /api/v1/admin/channels                      GET  /api/v1/admin/sources
 POST /api/v1/admin/sources {name, host, port, zip (base64), callers}
 POST /api/v1/admin/sources/{name}/secret {password}    PUT /api/v1/admin/sources/{name}/callers {callers}
 POST /api/v1/admin/sources/{name}/verify
-POST /api/v1/conversations/{uid}/messages {text, actor, client_msg_id}
+POST /api/v1/conversations/{uid}/messages {text, actor, client_msg_id, thread_ref?, mode? (ask|dig), loop?}
+GET  /api/v1/conversations/{uid}/inflight        what is running, and the limits (one per thread, a cap per conversation)
+GET  /api/v1/admin/captures/{path}               one of your captures, for history
 GET  /api/v1/conversations/{uid}/events?after=&amp;epoch=&amp;wait_s=</pre></div></section>
 </main>
 <script>
@@ -144,7 +161,7 @@ const convId = () => 'desk-' + S.actor.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 function show(name) {
   document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === name));
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.s === name));
-  if (name === 'memory') loadMemory(); if (name === 'sources') loadSources(); if (name === 'monitor') loadMonitor(); if (name === 'settings') loadSettings(); if (name === 'status') loadStatus(); if (name === 'ask') startPoll();
+  if (name === 'memory') loadMemory(); if (name === 'research') loadResearch(); if (name === 'history') loadHistory(); if (name === 'sources') loadSources(); if (name === 'monitor') loadMonitor(); if (name === 'settings') loadSettings(); if (name === 'status') loadStatus(); if (name === 'ask') startPoll();
 }
 document.querySelectorAll('#nav a').forEach(a => a.onclick = ev => { ev.preventDefault(); if (!S.key) return; location.hash = a.dataset.s; show(a.dataset.s); });
 document.getElementById('theme').onclick = () => { document.documentElement.classList.toggle('light'); try { localStorage.setItem('aida.theme', document.documentElement.classList.contains('light') ? 'light' : 'dark'); } catch (_) {} };
@@ -183,7 +200,7 @@ function place(ev) {
 }
 function renderThreads() {
   const list = [...T.byId.values()].sort((a, b) => b.last - a.last);
-  document.getElementById('threads').innerHTML = list.map(t => `<a href="#" data-t="${e(t.id)}" class="${t.id === T.current ? 'on' : ''}"><div class="t">${e(t.title || '(no question yet)')}</div><div class="m">${t.items.filter(x => x.type === 'message').length} answer(s) · ${t.items.filter(x => x.type === 'user').length} message(s)</div></a>`).join('') || '<p class="foot">no questions yet</p>';
+  document.getElementById('threads').innerHTML = list.map(t => `<a href="#" data-t="${e(t.id)}" class="${t.id === T.current ? 'on' : ''}"><div class="t">${t.items.some(x => x.mode === 'dig') ? '<span class="pill">research</span> ' : ''}${inFlightOf(t.id) ? '<span class="pill warn">in flight</span> ' : ''}${e(t.title || '(no question yet)')}</div><div class="m">${t.items.filter(x => x.type === 'message').length} answer(s) · ${t.items.filter(x => x.type === 'user').length} message(s)</div></a>`).join('') || '<p class="foot">no questions yet</p>';
   document.querySelectorAll('#threads a').forEach(a => a.onclick = ev => { ev.preventDefault(); T.current = a.dataset.t; renderThreads(); renderThread(); });
 }
 function renderThread() {
@@ -198,20 +215,34 @@ function renderThread() {
     const next = (ev.next || []).length ? `<div class="next">${ev.next.map(q => `<button type="button" data-follow="${e(q)}">${e(q)}</button>`).join('')}</div>` : '';
     return `<div class="a"><div class="sum">${e(ev.summary || ev.text)}</div>${ev.link ? `<a class="report" href="${e(ev.link)}" target="_blank" rel="noopener">Open the report ↗</a>` : ''}${next}</div>`;
   }).join('');
-  box.querySelectorAll('[data-follow]').forEach(b => b.onclick = () => send('follow: ' + b.dataset.follow, t.id));
+  const busy = inFlightOf(t.id);
+  box.querySelectorAll('[data-follow]').forEach(b => { b.disabled = !!busy; b.onclick = () => send(b.dataset.follow, t.id); });
+  const ff = document.getElementById('followform'); ff.querySelector('button').disabled = !!busy; ff.querySelector('input').placeholder = busy ? 'a question is in flight in this thread — wait for its answer' : 'a follow-up in this thread';
   box.scrollTop = box.scrollHeight;
 }
-async function send(text, tid) {
+function inFlightOf(tid) {
+  // unanswered questions in a thread: a user event with no later message quoting it
+  const t = T.byId.get(tid); if (!t) return null;
+  const answered = new Set(t.items.filter(x => x.type === 'message' && x.reply_to).map(x => x.reply_to));
+  return t.items.find(x => x.type === 'user' && !answered.has(x.msg_ref)) || null;
+}
+function renderInFlight() {
+  const n = [...T.byId.values()].filter(t => inFlightOf(t.id)).length;
+  const el = document.getElementById('inflight'); el.textContent = n ? `${n} in flight` : '';
+  document.getElementById('askbtn').disabled = S.limits && n >= S.limits.max_in_flight;
+}
+async function send(text, tid, extra) {
   const id = crypto.randomUUID();
   if (tid) T.userThread.set(id, tid);
-  try { const r = await api('POST', `/api/v1/conversations/${convId()}/messages`, {text, actor: S.actor, client_msg_id: id, thread_ref: tid || ''});
-    if (r.msg_ref && tid) T.userThread.set(r.msg_ref, tid); }
-  catch (err) { const t = thread(tid || 'misc'); t.items.push({type: 'status', id: id, text: 'not sent: ' + err.message}); renderThreads(); renderThread(); }
+  try { const r = await api('POST', `/api/v1/conversations/${convId()}/messages`, {text, actor: S.actor, client_msg_id: id, thread_ref: tid || '', ...(extra || {})});
+    if (r.msg_ref && tid) T.userThread.set(r.msg_ref, tid); return r; }
+  catch (err) { const t = thread(tid || 'misc'); t.items.push({type: 'status', id: id, text: 'not sent: ' + err.message}); renderThreads(); renderThread(); return null; }
 }
 document.getElementById('askform').onsubmit = ev => { ev.preventDefault(); const f = ev.target; const t = f.text.value.trim(); if (!t) return; f.text.value = ''; send(t); };
 document.getElementById('followform').onsubmit = ev => { ev.preventDefault(); const f = ev.target; const t = f.text.value.trim(); if (!t || !T.current) return; f.text.value = ''; send(t, T.current); };
 async function startPoll() {
   document.getElementById('convid').textContent = convId();
+  if (!S.limits) { try { S.limits = (await api('GET', `/api/v1/conversations/${convId()}/inflight`)).limits; } catch (_) {} }
   if (S.polling) return; S.polling = true;
   while (S.polling && S.key) {
     try {
@@ -219,12 +250,30 @@ async function startPoll() {
       if (r.reset) { T.byId.clear(); T.order = []; T.userThread.clear(); S.after = 0; }
       S.epoch = r.epoch;
       for (const ev of r.events) { const t = place(ev); if (ev.type === 'user' && !T.current) T.current = t.id; }
-      if (r.events.length) { const newest = [...T.byId.values()].sort((a, b) => b.last - a.last)[0]; if (newest && (!T.current || !T.byId.has(T.current))) T.current = newest.id; renderThreads(); renderThread(); }
+      if (r.events.length) { const newest = [...T.byId.values()].sort((a, b) => b.last - a.last)[0]; if (newest && (!T.current || !T.byId.has(T.current))) T.current = newest.id; renderThreads(); renderThread(); renderInFlight(); }
       S.after = r.next;
     } catch (err) { await new Promise(res => setTimeout(res, 3000)); }
   }
 }
 
+// ---- research ----
+async function loadResearch() {
+  if (!S.limits) { try { S.limits = (await api('GET', `/api/v1/conversations/${convId()}/inflight`)).limits; } catch (_) { S.limits = {dig_loop: 3, dig_max_loop: 8, max_in_flight: 2}; } }
+  const sel = document.getElementById('digloop'); sel.innerHTML = Array.from({length: S.limits.dig_max_loop}, (_, i) => i + 1).map(n => `<option value="${n}" ${n === S.limits.dig_loop ? 'selected' : ''}>${n}${n === S.limits.dig_loop ? ' (default)' : ''}</option>`).join('');
+  document.getElementById('digmax').textContent = `1 to ${S.limits.dig_max_loop}`;
+  document.getElementById('digform').onsubmit = async ev => { ev.preventDefault(); const f = ev.target; const text = f.text.value.trim(); if (!text) return;
+    const r = await send(text, null, {mode: 'dig', loop: Number(f.loop.value)});
+    document.getElementById('digmsg').textContent = r ? 'started — it appears in Ask as a thread' : 'not started (see Ask for the reason)'; if (r) { f.text.value = ''; location.hash = 'ask'; show('ask'); } };
+}
+// ---- history ----
+async function loadHistory() {
+  const days = document.getElementById('histdays').value; document.getElementById('histdays').onchange = loadHistory;
+  let rows; try { rows = (await api('GET', `/api/v1/admin/monitor/rows?days=${days}&limit=500&what=runs`)).runs || []; } catch (err) { document.getElementById('histview').innerHTML = `<div class="msg bad">${e(err.message)}</div>`; return; }
+  const mine = rows.filter(r => (r.caller || '') === `web:desk:${S.actor}`);
+  document.querySelector('#hist tbody').innerHTML = mine.map(r => `<tr><td>${e((r.started_utc || '').slice(0, 16))}</td><td>${e(r.kind)}</td><td>${e(r.question)}</td><td>${fmtS(r.elapsed_s)}</td><td>${e(r.exit_code)}</td><td>${r.capture ? `<button type="button" class="quiet" data-cap="${e(r.capture)}">open</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="6" class="foot">no questions by ${e(S.actor)} in this window</td></tr>`;
+  document.querySelectorAll('[data-cap]').forEach(b => b.onclick = async () => { try { const c = await api('GET', `/api/v1/admin/captures/${b.dataset.cap}`); const ans = (c.text.split(/^## Answer\s*$/m)[1] || c.text).split(/^## /m)[0];
+      document.getElementById('histview').innerHTML = `<h3 style="font-size:13px">${e(c.path)}</h3><pre>${e(ans.trim())}</pre>`; } catch (err) { document.getElementById('histview').innerHTML = `<div class="msg bad">${e(err.message)}</div>`; } });
+}
 // ---- memory ----
 async function loadMemory() {
   let m; try { m = await api('GET', '/api/v1/admin/memory'); } catch (err) { document.getElementById('toolout').innerHTML = `<div class="msg bad">${e(err.message)}</div>`; return; }

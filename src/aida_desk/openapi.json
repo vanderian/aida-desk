@@ -132,6 +132,44 @@
         }
       }
     },
+    "/api/v1/conversations/{uid}/inflight": {
+      "get": {
+        "summary": "Get Inflight",
+        "description": "What is running in this conversation now: the questions without\nan answer yet, each with its thread. A page shows it; an integration\nchecks it before asking into a thread.",
+        "operationId": "get_inflight_api_v1_conversations__uid__inflight_get",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Uid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/whoami": {
       "get": {
         "summary": "Whoami",
@@ -668,6 +706,44 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/captures/{path}": {
+      "get": {
+        "summary": "Capture",
+        "description": "One of the tenant's own captures \u2014 an answer as the engine wrote\nit \u2014 for the history view. Only under memory/raw, only a regular\nfile inside the workspace, at most 512 KB.",
+        "operationId": "capture_api_v1_admin_captures__path__get",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
