@@ -1,0 +1,16 @@
+[project]
+name = "aida-desk"
+version = "0.13.0"
+description = "aida desk: the client's page on their tenant — conversation, memory review and ratification, sources, monitoring — and the reference client for the tenant API"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aida_desk"]
