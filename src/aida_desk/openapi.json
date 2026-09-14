@@ -521,6 +521,75 @@
         }
       }
     },
+    "/api/v1/admin/integrations": {
+      "get": {
+        "summary": "Integrations List",
+        "description": "The client's own integrations, and the ones we provision (no key handling for those).",
+        "operationId": "integrations_list_api_v1_admin_integrations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Integrations Add",
+        "description": "Mint an integration: the key comes back ONCE and is never shown\nagain. It authenticates on the next request, no restart.",
+        "operationId": "integrations_add_api_v1_admin_integrations_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/integrations/{name}": {
+      "delete": {
+        "summary": "Integrations Revoke",
+        "operationId": "integrations_revoke_api_v1_admin_integrations__name__delete",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/memory/history": {
       "get": {
         "summary": "Memory History",

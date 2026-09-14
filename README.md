@@ -30,6 +30,10 @@ Both stay in the browser tab.
   incidents; what is in flight; memory and sources as structure; the
   workspace's git state; and the operator's trail on your tenant, every
   time simtree read your rows, with the reason given.
+- **Settings**: your own integrations. Create one and get its key, once;
+  it authenticates on the next request, no restart; revoke to rotate.
+  Then allow `web:<name>` on the sources it may use. What channels run
+  on the tenant is the operator's; the admin key is issued by them.
 - **Status**: the workspace's git state and what awaits ratification.
 
 ## The API
@@ -50,6 +54,9 @@ headers: `Authorization: Bearer <admin key>` and `X-Actor: <name>`.
 | `GET  /api/v1/admin/memory/audit` | entries a reader flags; `pii` is the tier that matters |
 | `POST /api/v1/admin/memory/contradictions` | a judge run over the corpus; minutes |
 | `GET  /api/v1/admin/status` | workspace state |
+| `GET  /api/v1/admin/integrations` | your integrations, and the provisioned ones |
+| `POST /api/v1/admin/integrations` `{name}` | mint one; the key comes back once |
+| `DELETE /api/v1/admin/integrations/{name}` | revoke it |
 | `GET  /api/v1/admin/monitor?days=` | the tenant's collection: summary, incidents, in flight, memory, git, sources, the operator's trail |
 | `GET  /api/v1/admin/monitor/rows?days=&limit=&what=` | the rows behind it: runs, incidents, in flight |
 | `POST /api/v1/conversations/{uid}/messages` `{text, actor, client_msg_id}` | ask |

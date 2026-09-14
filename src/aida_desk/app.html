@@ -28,7 +28,7 @@ pre{background:var(--panel2);padding:10px;border-radius:4px;font-size:12px;overf
 </head>
 <body>
 <header><h1>aida desk</h1>
-  <nav id="nav"><a href="#ask" data-s="ask">Ask</a><a href="#memory" data-s="memory">Memory</a><a href="#sources" data-s="sources">Sources</a><a href="#monitor" data-s="monitor">Monitoring</a><a href="#status" data-s="status">Status</a><a href="#api" data-s="api">API</a></nav>
+  <nav id="nav"><a href="#ask" data-s="ask">Ask</a><a href="#memory" data-s="memory">Memory</a><a href="#sources" data-s="sources">Sources</a><a href="#monitor" data-s="monitor">Monitoring</a><a href="#settings" data-s="settings">Settings</a><a href="#status" data-s="status">Status</a><a href="#api" data-s="api">API</a></nav>
   <span class="right" id="who">not signed in</span>
   <button class="quiet" id="theme" type="button" title="theme">◐</button>
 </header>
@@ -90,6 +90,17 @@ pre{background:var(--panel2);padding:10px;border-radius:4px;font-size:12px;overf
     <p class="foot" style="margin:8px 0 0">"who looked" is the operator's trail on your tenant: every time simtree read your rows, with the reason given.</p></div>
 </section>
 
+<section id="settings">
+  <div class="card"><h2>Your integrations <span class="foot" id="intcount"></span></h2>
+    <p class="foot" style="margin:0 0 8px">A system of yours that asks this tenant: it sends its key as <code>Authorization: Bearer</code> and names the person behind each request. The key is shown once, when created; revoke and create again to rotate. It works on the next request, no restart. Then list <code>web:&lt;name&gt;</code> on the sources it may use.</p>
+    <table id="ints"><thead><tr><th>name</th><th>created</th><th>by</th><th>key</th><th></th></tr></thead><tbody></tbody></table>
+    <form id="intadd" class="row" style="margin-top:10px"><input name="name" pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="24" placeholder="new integration, e.g. erp-portal" autocomplete="off" data-1p-ignore style="flex:1" required><button>Create</button></form>
+    <div id="intout"></div></div>
+  <div class="card"><h2>Channels on this tenant</h2><div id="chanlist" class="row"></div>
+    <p class="foot" style="margin:8px 0 0">What runs here is set by the operator: the chat, the desk, the integrations above. Which of them may use a data source is yours, on Sources.</p></div>
+  <div class="card"><h2>Admin access</h2><p class="foot" style="margin:0">One admin key per tenant, issued by the operator; rotating it is theirs. Your name on sign-in is recorded on every action and is the attesting identity when you ratify.</p></div>
+</section>
+
 <section id="status"><div class="card"><h2>Status</h2><pre id="statusout">…</pre></div></section>
 
 <section id="api"><div class="card"><h2>The API this page uses</h2>
@@ -101,6 +112,7 @@ GET  /api/v1/admin/memory/pages/{page}/review    POST /api/v1/admin/memory/pages
 GET  /api/v1/admin/memory/audit                  POST /api/v1/admin/memory/contradictions
 GET  /api/v1/admin/memory/history                GET  /api/v1/admin/status
 GET  /api/v1/admin/monitor?days=                 GET  /api/v1/admin/monitor/rows?days=&amp;limit=&amp;what=
+GET  /api/v1/admin/integrations   POST /api/v1/admin/integrations {name} → the key, once   DELETE /api/v1/admin/integrations/{name}
 GET  /api/v1/admin/channels                      GET  /api/v1/admin/sources
 POST /api/v1/admin/sources {name, host, port, zip (base64), callers}
 POST /api/v1/admin/sources/{name}/secret {password}    PUT /api/v1/admin/sources/{name}/callers {callers}
@@ -122,7 +134,7 @@ const convId = () => 'desk-' + S.actor.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 function show(name) {
   document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === name));
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.s === name));
-  if (name === 'memory') loadMemory(); if (name === 'sources') loadSources(); if (name === 'monitor') loadMonitor(); if (name === 'status') loadStatus(); if (name === 'ask') startPoll();
+  if (name === 'memory') loadMemory(); if (name === 'sources') loadSources(); if (name === 'monitor') loadMonitor(); if (name === 'settings') loadSettings(); if (name === 'status') loadStatus(); if (name === 'ask') startPoll();
 }
 document.querySelectorAll('#nav a').forEach(a => a.onclick = ev => { ev.preventDefault(); if (!S.key) return; location.hash = a.dataset.s; show(a.dataset.s); });
 document.getElementById('theme').onclick = () => { document.documentElement.classList.toggle('light'); try { localStorage.setItem('aida.theme', document.documentElement.classList.contains('light') ? 'light' : 'dark'); } catch (_) {} };
@@ -244,6 +256,23 @@ async function loadMonitor() {
     + stat('sources', `${(m.sources || []).filter(x => x.offered).length} / ${(m.sources || []).length} offered`, (m.sources || []).map(x => `${e(x.name)}: ${x.offered ? 'offered' : e((x.verify && x.verify.present) ? 'not offered' : 'not verified')}`).join(' · ') || 'none registered')
     + stat('workspace', g.error ? e(g.error) : `${e(g.branch)} ${g.dirty ? '· dirty' : '· clean'}`, g.last ? `${e(g.last.subject)} · ${e((g.last.at || '').slice(0, 10))}` : '')
     + stat('who looked', `${fmtN(a.entries)} time(s)`, (a.latest || []).map(x => `${e((x.ts_utc || '').slice(0, 10))} ${e(x.operator)}: ${e(x.reason)}`).join('<br>') || 'nobody yet');
+}
+// ---- settings ----
+async function loadSettings() {
+  const out = (ok, html) => document.getElementById('intout').innerHTML = `<div class="msg ${ok ? 'ok' : 'bad'}">${html}</div>`;
+  try {
+    const [r, ch] = await Promise.all([api('GET', '/api/v1/admin/integrations'), api('GET', '/api/v1/admin/channels')]);
+    const mine = r.integrations || [], prov = r.provisioned || [];
+    document.getElementById('intcount').textContent = `${mine.length}`;
+    document.querySelector('#ints tbody').innerHTML = [...prov.map(p => `<tr><td><code>${e(p.name)}</code></td><td colspan="3" class="foot">provisioned by the operator; its key lives in the vault</td><td></td></tr>`),
+      ...mine.map(i => `<tr><td><code>${e(i.name)}</code></td><td>${e((i.created_utc || '').slice(0, 16))}</td><td>${e(i.by)}</td><td>${i.has_key ? '<span class="pill ok">present</span>' : '<span class="pill bad">missing</span>'}</td><td><button type="button" class="bad" data-revoke="${e(i.name)}">revoke</button></td></tr>`)].join('') || '<tr><td colspan="5" class="foot">none yet</td></tr>';
+    document.getElementById('chanlist').innerHTML = (ch.channels || []).map(c => `<span class="pill">${e(c)}</span>`).join('');
+    document.querySelectorAll('[data-revoke]').forEach(b => b.onclick = async () => { if (!confirm(`revoke ${b.dataset.revoke}? its key stops on the next request`)) return; try { await api('DELETE', `/api/v1/admin/integrations/${b.dataset.revoke}`); out(true, `revoked ${e(b.dataset.revoke)}`); loadSettings(); } catch (err) { out(false, e(err.message)); } });
+  } catch (err) { out(false, e(err.message)); }
+  document.getElementById('intadd').onsubmit = async ev => { ev.preventDefault(); const f = ev.target;
+    try { const r = await api('POST', '/api/v1/admin/integrations', {name: f.name.value}); f.name.value = '';
+      out(true, `<b>${e(r.name)}</b> created. Its key, shown once:<pre style="user-select:all">${e(r.key)}</pre>Send as <code>Authorization: Bearer …</code> with <code>actor</code> naming the person; then allow <code>web:${e(r.name)}</code> on the sources it may use.`); loadSettings(); }
+    catch (err) { out(false, e(err.message)); } };
 }
 async function loadStatus() { try { const s = await api('GET', '/api/v1/admin/status'); document.getElementById('statusout').textContent = JSON.stringify(s, null, 2); } catch (err) { document.getElementById('statusout').textContent = err.message; } }
 
