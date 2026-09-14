@@ -360,6 +360,167 @@
         }
       }
     },
+    "/api/v1/admin/channels": {
+      "get": {
+        "summary": "Channels",
+        "operationId": "channels_api_v1_admin_channels_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/sources": {
+      "get": {
+        "summary": "Sources List",
+        "description": "Every registered source and whether the engine offers it, why not otherwise.",
+        "operationId": "sources_list_api_v1_admin_sources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Sources Add",
+        "description": "Register from an aida-scope hand-over: the zip as base64, the\nhost and port the engine connects to, and who may use it. The\npassword comes separately (`/sources/{name}/secret`); verification\nis a call of its own, and the engine offers nothing until it passes.",
+        "operationId": "sources_add_api_v1_admin_sources_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/sources/{name}/secret": {
+      "post": {
+        "summary": "Sources Secret",
+        "description": "The engine user's password, into the workspace .env \u2014 the engine\nreads it on every run, so no restart. Never logged, never echoed.",
+        "operationId": "sources_secret_api_v1_admin_sources__name__secret_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/sources/{name}/callers": {
+      "put": {
+        "summary": "Sources Callers",
+        "operationId": "sources_callers_api_v1_admin_sources__name__callers_put",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/sources/{name}/verify": {
+      "post": {
+        "summary": "Sources Verify",
+        "description": "Seven checks as the engine's user, from the engine's seat; the\nreport is written beside the policy and the source is offered\nonly when it passes. Exit 5 from the tool is a failed verification,\nreturned as the report, not as an error.",
+        "operationId": "sources_verify_api_v1_admin_sources__name__verify_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/memory/history": {
       "get": {
         "summary": "Memory History",

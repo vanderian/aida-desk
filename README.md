@@ -87,5 +87,26 @@ sequenceDiagram
 The database itself is scoped on your side with
 [aida-scope](https://github.com/vanderian/aida-scope): read the
 structure, draft a mask per role, sign, have your DBA run the emitted
-SQL, verify, and hand over the bundle. The engine reaches the approved
-view schema and nothing else.
+SQL, verify, and download the hand-over bundle. Then, on this page:
+
+1. **Register** the bundle with the host and port the engine connects
+   to, and the channels that may use the source, one of your
+   integrations, the desk, the chat.
+2. **Store the password** of the engine's user. It goes into your
+   workspace's environment on the tenant, never in git and never shown
+   again; the engine reads it on every run.
+3. **Verify**: seven checks as the engine's user from the tenant. The
+   source is offered only while the verification passes for the policy
+   file as it is.
+
+The engine reaches the approved view schema and nothing else; a
+different mask for another role is simply another source.
+
+| | |
+|---|---|
+| `GET  /api/v1/admin/channels` | the channels a source can be offered to on this tenant |
+| `GET  /api/v1/admin/sources` | every source and whether the engine offers it |
+| `POST /api/v1/admin/sources` `{name, host, port, zip, callers}` | register from the hand-over (zip as base64) |
+| `POST /api/v1/admin/sources/{name}/secret` `{password}` | the engine user's password, into the workspace env |
+| `PUT  /api/v1/admin/sources/{name}/callers` `{callers}` | who may use it |
+| `POST /api/v1/admin/sources/{name}/verify` | prove it; the report comes back, pass or fail |

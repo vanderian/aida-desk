@@ -28,7 +28,7 @@ pre{background:var(--panel2);padding:10px;border-radius:4px;font-size:12px;overf
 </head>
 <body>
 <header><h1>aida desk</h1>
-  <nav id="nav"><a href="#ask" data-s="ask">Ask</a><a href="#memory" data-s="memory">Memory</a><a href="#status" data-s="status">Status</a><a href="#api" data-s="api">API</a></nav>
+  <nav id="nav"><a href="#ask" data-s="ask">Ask</a><a href="#memory" data-s="memory">Memory</a><a href="#sources" data-s="sources">Sources</a><a href="#status" data-s="status">Status</a><a href="#api" data-s="api">API</a></nav>
   <span class="right" id="who">not signed in</span>
   <button class="quiet" id="theme" type="button" title="theme">◐</button>
 </header>
@@ -60,6 +60,24 @@ pre{background:var(--panel2);padding:10px;border-radius:4px;font-size:12px;overf
     <div id="toolout"></div></div>
 </section>
 
+<section id="sources">
+  <div class="card"><h2>Data sources <span class="foot" id="srccount"></span></h2>
+    <p class="foot" style="margin:0 0 8px">A source is offered to the engine only when its verification passes here, for the policy file as it is, and only to the channels listed. Anything else is absent, not warned about.</p>
+    <table id="srcs"><thead><tr><th>source</th><th>where</th><th>offered</th><th>why</th><th>callers</th><th></th></tr></thead><tbody></tbody></table>
+    <div id="srcout"></div></div>
+  <div class="card"><h2>Register a source from an aida-scope hand-over</h2>
+    <p class="foot" style="margin:0 0 8px">The zip your IT downloaded from aida-scope after signing and verifying. The password of the engine's user is entered separately, below, and never travels with the bundle.</p>
+    <form id="srcadd"><div class="row"><div style="flex:1"><label>name</label><input name="name" pattern="[a-z][a-z0-9_-]*" placeholder="finance" autocomplete="off" data-1p-ignore required></div>
+      <div style="flex:2"><label>host, as the engine reaches it</label><input name="host" placeholder="db.example.internal" autocomplete="off" data-1p-ignore required></div>
+      <div style="flex:1"><label>port</label><input name="port" value="3306" autocomplete="off" data-1p-ignore></div></div>
+      <label>hand-over bundle (zip)</label><input name="zip" type="file" accept=".zip" required>
+      <label>offered to</label><div class="row" id="srcchannels"></div>
+      <div class="row" style="margin-top:10px"><button>Register</button></div></form></div>
+  <div class="card"><h2>The engine user's password</h2>
+    <form id="srcsecret" class="row"><input name="name" placeholder="source name" autocomplete="off" data-1p-ignore style="flex:1" required><input name="password" type="password" placeholder="password of the engine's user" autocomplete="off" data-1p-ignore data-lpignore="true" style="flex:2" required><button>Store</button></form>
+    <p class="foot" style="margin:6px 0 0">Stored in your workspace's environment file on the tenant, never in git, never shown again. The engine reads it on every run; then verify.</p></div>
+</section>
+
 <section id="status"><div class="card"><h2>Status</h2><pre id="statusout">…</pre></div></section>
 
 <section id="api"><div class="card"><h2>The API this page uses</h2>
@@ -70,6 +88,10 @@ POST /api/v1/admin/memory/add    {text, page?}
 GET  /api/v1/admin/memory/pages/{page}/review    POST /api/v1/admin/memory/pages/{page}/ratify
 GET  /api/v1/admin/memory/audit                  POST /api/v1/admin/memory/contradictions
 GET  /api/v1/admin/memory/history                GET  /api/v1/status
+GET  /api/v1/admin/channels                      GET  /api/v1/admin/sources
+POST /api/v1/admin/sources {name, host, port, zip (base64), callers}
+POST /api/v1/admin/sources/{name}/secret {password}    PUT /api/v1/admin/sources/{name}/callers {callers}
+POST /api/v1/admin/sources/{name}/verify
 POST /api/v1/conversations/{uid}/messages {text, actor, client_msg_id}
 GET  /api/v1/conversations/{uid}/events?after=&amp;epoch=&amp;wait_s=</pre></div></section>
 </main>
@@ -87,7 +109,7 @@ const convId = () => 'desk-' + S.actor.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 function show(name) {
   document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === name));
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.s === name));
-  if (name === 'memory') loadMemory(); if (name === 'status') loadStatus(); if (name === 'ask') startPoll();
+  if (name === 'memory') loadMemory(); if (name === 'sources') loadSources(); if (name === 'status') loadStatus(); if (name === 'ask') startPoll();
 }
 document.querySelectorAll('#nav a').forEach(a => a.onclick = ev => { ev.preventDefault(); if (!S.key) return; location.hash = a.dataset.s; show(a.dataset.s); });
 document.getElementById('theme').onclick = () => { document.documentElement.classList.toggle('light'); try { localStorage.setItem('aida.theme', document.documentElement.classList.contains('light') ? 'light' : 'dark'); } catch (_) {} };
@@ -155,6 +177,30 @@ async function loadMemory() {
   document.getElementById('history').onclick = async () => { try { const r = await api('GET', '/api/v1/admin/memory/history'); const rows = r.ratifications || [];
       out(true, `${rows.length} ratification(s)` + (rows.length ? `<table><tr><th>when</th><th>by</th><th>pages</th><th>facts</th></tr>${rows.map(x => `<tr><td>${e((x.when || '').slice(0, 16))}</td><td>${e(x.by)}</td><td>${e((x.pages || []).join(', '))}</td><td>${x.facts}</td></tr>`).join('')}</table>` : '')); } catch (err) { out(false, e(err.message)); } };
   document.getElementById('addform').onsubmit = async ev => { ev.preventDefault(); const f = ev.target; try { const r = await api('POST', '/api/v1/admin/memory/add', {text: f.text.value, page: f.page.value || undefined}); out(true, `added to ${e(r.page)}`); f.text.value = ''; loadMemory(); } catch (err) { out(false, e(err.message)); } };
+}
+// ---- sources ----
+let CHANNELS = null;
+async function loadSources() {
+  const out = (ok, html) => document.getElementById('srcout').innerHTML = `<div class="msg ${ok ? 'ok' : 'bad'}">${html}</div>`;
+  try {
+    if (!CHANNELS) { CHANNELS = (await api('GET', '/api/v1/admin/channels')).channels; document.getElementById('srcchannels').innerHTML = CHANNELS.map(c => `<label style="display:inline-flex;gap:4px;align-items:center;margin:0"><input type="checkbox" name="callers" value="${e(c)}" ${c === 'web:desk' ? 'checked' : ''}> ${e(c)}</label>`).join(''); }
+    const r = await api('GET', '/api/v1/admin/sources'); const srcs = r.sources || [];
+    document.getElementById('srccount').textContent = `${srcs.length}`;
+    document.querySelector('#srcs tbody').innerHTML = srcs.map(x => `<tr><td><code>${e(x.name)}</code><div class="foot">${e(x.kind)}</div></td><td>${e(x.where)}</td>
+      <td><span class="pill ${x.ok ? 'ok' : 'bad'}">${x.ok ? 'offered' : 'absent'}</span></td><td class="foot">${e(x.reason)}${x.approved_by ? `<br>approved by ${e(x.approved_by)}` : ''}${x.verified_at ? `<br>verified ${e(x.verified_at.slice(0, 16))}` : ''}</td>
+      <td><input value="${e((x.callers || []).join(','))}" data-callers="${e(x.name)}" size="24" autocomplete="off" data-1p-ignore></td>
+      <td class="row"><button type="button" class="quiet" data-setcallers="${e(x.name)}">callers</button><button type="button" data-verify="${e(x.name)}">verify</button></td></tr>`).join('') || '<tr><td colspan="6" class="foot">no sources registered</td></tr>';
+    document.querySelectorAll('[data-verify]').forEach(b => b.onclick = async () => { out(true, `verifying ${e(b.dataset.verify)} as the engine's user…`);
+      try { const v = await api('POST', `/api/v1/admin/sources/${b.dataset.verify}/verify`); out(!!v.ok, `${e(v.name)}: ${v.ok ? 'VERIFIED — offered to its callers' : 'not offered'} — ${e(v.reason)}${(v.failed || []).length ? '<br>failed: ' + e(v.failed.join('; ')) : ''}`); loadSources(); } catch (err) { out(false, e(err.message)); } });
+    document.querySelectorAll('[data-setcallers]').forEach(b => b.onclick = async () => { const v = document.querySelector(`input[data-callers="${b.dataset.setcallers}"]`).value.split(',').map(s => s.trim()).filter(Boolean);
+      try { const r = await api('PUT', `/api/v1/admin/sources/${b.dataset.setcallers}/callers`, {callers: v}); out(true, `${e(r.name)}: offered to ${e((r.callers || []).join(', ') || 'nobody')}`); loadSources(); } catch (err) { out(false, e(err.message)); } });
+  } catch (err) { out(false, e(err.message)); }
+  document.getElementById('srcadd').onsubmit = async ev => { ev.preventDefault(); const f = ev.target; const file = f.zip.files[0]; if (!file) return;
+    const buf = await file.arrayBuffer(); const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+    const callers = [...f.querySelectorAll('input[name="callers"]:checked')].map(c => c.value);
+    try { const r = await api('POST', '/api/v1/admin/sources', {name: f.name.value, host: f.host.value, port: f.port.value, zip: b64, callers}); out(true, `registered ${e(r.name)} — ${e(r.status)}; now store the password and verify`); f.reset(); loadSources(); } catch (err) { out(false, e(err.message)); } };
+  document.getElementById('srcsecret').onsubmit = async ev => { ev.preventDefault(); const f = ev.target;
+    try { const r = await api('POST', `/api/v1/admin/sources/${f.name.value}/secret`, {password: f.password.value}); f.password.value = ''; out(true, `stored as ${e(r.env)} — now verify`); } catch (err) { out(false, e(err.message)); } };
 }
 async function loadStatus() { try { const s = await api('GET', '/api/v1/status'); document.getElementById('statusout').textContent = JSON.stringify(s, null, 2); } catch (err) { document.getElementById('statusout').textContent = err.message; } }
 
