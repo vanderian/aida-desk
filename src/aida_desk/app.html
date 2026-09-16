@@ -34,7 +34,7 @@ pre{background:var(--panel2);padding:10px;border-radius:4px;font-size:12px;overf
 </head>
 <body>
 <header><h1>aida desk</h1>
-  <nav id="nav"><a href="#ask" data-s="ask">Ask</a><a href="#research" data-s="research">Research</a><a href="#history" data-s="history">History</a><a href="#memory" data-s="memory">Memory</a><a href="#sources" data-s="sources">Sources</a><a href="#monitor" data-s="monitor">Monitoring</a><a href="#settings" data-s="settings">Settings</a><a href="#status" data-s="status">Status</a><a href="#api" data-s="api">API</a></nav>
+  <nav id="nav"><a href="#ask" data-s="ask">Ask</a><a href="#research" data-s="research">Research</a><a href="#history" data-s="history">History</a><a href="#tasks" data-s="tasks">Tasks</a><a href="#memory" data-s="memory">Memory</a><a href="#sources" data-s="sources">Sources</a><a href="#monitor" data-s="monitor">Monitoring</a><a href="#settings" data-s="settings">Settings</a><a href="#status" data-s="status">Status</a><a href="#api" data-s="api">API</a></nav>
   <span class="right" id="who">not signed in</span>
   <button class="quiet" id="theme" type="button" title="theme">◐</button>
 </header>
@@ -70,6 +70,17 @@ pre{background:var(--panel2);padding:10px;border-radius:4px;font-size:12px;overf
   <div class="row"><h2 style="margin:0">History</h2><span class="foot">your past questions on this tenant, from the labor ledger</span><span class="right row"><label style="margin:0">window</label><select id="histdays"><option value="7">7 d</option><option value="30" selected>30 d</option><option value="90">90 d</option><option value="365">1 y</option></select></span></div>
   <table id="hist" style="margin-top:10px"><thead><tr><th>when</th><th>kind</th><th>question</th><th>took</th><th>exit</th><th></th></tr></thead><tbody></tbody></table>
   <div id="histview"></div>
+</div></section>
+
+<section id="tasks"><div class="ask">
+  <aside class="card"><h2>Tasks <span class="foot" id="taskcount"></span></h2>
+    <p class="foot" style="margin:0 0 8px">A recurring digest: ratified SQL runs on schedule, the engine narrates the rows, a digest lands. The definition is yours, by commit.</p>
+    <div class="threads" id="tasklist"></div>
+    <h2 style="margin-top:16px">New task from a goal</h2>
+    <form id="taskdraft"><input name="id" pattern="[a-z0-9][a-z0-9-]*" placeholder="id, e.g. weekly-rentals" autocomplete="off" data-1p-ignore required><textarea name="goal" rows="3" placeholder="what it should find or produce, in your words" autocomplete="off" data-1p-ignore required style="margin-top:6px"></textarea>
+      <div class="row" style="margin-top:8px"><button>Draft it</button><span class="foot">the builder writes it disabled; minutes</span></div></form>
+    <h2 style="margin-top:16px">Digests</h2><div id="digests" class="threads"></div></aside>
+  <div class="card" id="taskcard"><p class="foot">pick a task, or draft one</p></div>
 </div></section>
 
 <section id="memory">
@@ -136,6 +147,9 @@ POST /api/v1/admin/memory/add    {text, page?}
 GET  /api/v1/admin/memory/pages/{page}/review    POST /api/v1/admin/memory/pages/{page}/ratify
 GET  /api/v1/admin/memory/audit                  POST /api/v1/admin/memory/contradictions
 GET  /api/v1/admin/memory/history                GET  /api/v1/admin/status
+GET  /api/v1/admin/tasks   POST /api/v1/admin/tasks {id, goal}   GET /api/v1/admin/tasks/{id} | /outcomes | /file | /actions
+PUT  /api/v1/admin/tasks/{id}/file {human, message}   PUT /api/v1/admin/tasks/{id}/enabled {enabled}   POST /api/v1/admin/tasks/{id}/run | /record
+GET  /api/v1/admin/digests   GET /api/v1/admin/digests/{stamp}
 GET  /api/v1/admin/monitor?days=                 GET  /api/v1/admin/monitor/rows?days=&amp;limit=&amp;what=
 GET  /api/v1/admin/integrations   POST /api/v1/admin/integrations {name} → the key, once   DELETE /api/v1/admin/integrations/{name}
 GET  /api/v1/admin/channels                      GET  /api/v1/admin/sources
@@ -161,7 +175,7 @@ const convId = () => 'desk-' + S.actor.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 function show(name) {
   document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === name));
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.s === name));
-  if (name === 'memory') loadMemory(); if (name === 'research') loadResearch(); if (name === 'history') loadHistory(); if (name === 'sources') loadSources(); if (name === 'monitor') loadMonitor(); if (name === 'settings') loadSettings(); if (name === 'status') loadStatus(); if (name === 'ask') startPoll();
+  if (name === 'memory') loadMemory(); if (name === 'tasks') loadTasks(); if (name === 'research') loadResearch(); if (name === 'history') loadHistory(); if (name === 'sources') loadSources(); if (name === 'monitor') loadMonitor(); if (name === 'settings') loadSettings(); if (name === 'status') loadStatus(); if (name === 'ask') startPoll();
 }
 document.querySelectorAll('#nav a').forEach(a => a.onclick = ev => { ev.preventDefault(); if (!S.key) return; location.hash = a.dataset.s; show(a.dataset.s); });
 document.getElementById('theme').onclick = () => { document.documentElement.classList.toggle('light'); try { localStorage.setItem('aida.theme', document.documentElement.classList.contains('light') ? 'light' : 'dark'); } catch (_) {} };
@@ -215,7 +229,8 @@ function renderThread() {
   document.getElementById('followform').hidden = !t || t.id.startsWith('pending-');
   if (!t) { box.innerHTML = ''; document.getElementById('threadtitle').textContent = 'Pick a question, or ask one'; return; }
   document.getElementById('threadtitle').textContent = t.title || 'question';
-  document.getElementById('threadfoot').textContent = t.id.startsWith('pending-') ? 'waiting for the engine to open the thread' : `thread ${t.id}`;
+  document.getElementById('threadfoot').innerHTML = t.id.startsWith('pending-') ? 'waiting for the engine to open the thread' : `thread ${e(t.id)} · <a href="#" id="astask">make this a recurring task</a>`;
+  const at = document.getElementById('astask'); if (at) at.onclick = ev => { ev.preventDefault(); const f = document.getElementById('taskdraft'); f.goal.value = t.title || ''; f.id.value = (t.title || 'task').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40); location.hash = 'tasks'; show('tasks'); };
   box.innerHTML = t.items.map(ev => {
     if (ev.type === 'user') return `<div class="q">${e(ev.text)}</div>`;
     if (ev.type === 'status') return `<div class="st" id="ev-${e(ev.id)}">${e(ev.text)}</div>`;
@@ -280,6 +295,61 @@ async function loadHistory() {
   document.querySelector('#hist tbody').innerHTML = mine.map(r => `<tr><td>${e((r.started_utc || '').slice(0, 16))}</td><td>${e(r.kind)}</td><td>${e(r.question)}</td><td>${fmtS(r.elapsed_s)}</td><td>${e(r.exit_code)}</td><td>${r.capture ? `<button type="button" class="quiet" data-cap="${e(r.capture)}">open</button>` : ''}</td></tr>`).join('') || `<tr><td colspan="6" class="foot">no questions by ${e(S.actor)} in this window</td></tr>`;
   document.querySelectorAll('[data-cap]').forEach(b => b.onclick = async () => { try { const c = await api('GET', `/api/v1/admin/captures/${b.dataset.cap}`); const ans = (c.text.split(/^## Answer\s*$/m)[1] || c.text).split(/^## /m)[0];
       document.getElementById('histview').innerHTML = `<h3 style="font-size:13px">${e(c.path)}</h3><pre>${e(ans.trim())}</pre>`; } catch (err) { document.getElementById('histview').innerHTML = `<div class="msg bad">${e(err.message)}</div>`; } });
+}
+// ---- tasks ----
+const TK = { current: null };
+async function loadTasks() {
+  const side = document.getElementById('tasklist');
+  try {
+    const [r, d] = await Promise.all([api('GET', '/api/v1/admin/tasks'), api('GET', '/api/v1/admin/digests')]);
+    const tasks = r.tasks || [];
+    document.getElementById('taskcount').textContent = `${tasks.length}`;
+    side.innerHTML = tasks.map(t => `<a href="#" data-task="${e(t.id)}" class="${t.id === TK.current ? 'on' : ''}"><div class="t">${t.enabled ? (t.due ? '<span class="pill warn">due</span> ' : '<span class="pill ok">on</span> ') : '<span class="pill">off</span> '}${e(t.title)}</div><div class="m">${e(t.schedule)} · ${t.sources} source(s) · last ${e((t.last_run || 'never').slice(0, 16))}</div></a>`).join('') || '<p class="foot">no tasks yet</p>';
+    side.querySelectorAll('[data-task]').forEach(a => a.onclick = ev => { ev.preventDefault(); TK.current = a.dataset.task; loadTasks(); openTask(a.dataset.task); });
+    document.getElementById('digests').innerHTML = (d.digests || []).slice(0, 20).map(x => `<a href="#" data-digest="${e(x.stamp)}"><div class="t">${e(x.stamp.slice(0, 13))}</div><div class="m">${e(x.title)}</div></a>`).join('') || '<p class="foot">no digests yet</p>';
+    document.querySelectorAll('[data-digest]').forEach(a => a.onclick = async ev => { ev.preventDefault(); try { const x = await api('GET', `/api/v1/admin/digests/${a.dataset.digest}`); document.getElementById('taskcard').innerHTML = `<h2>digest ${e(x.stamp)}</h2><pre>${e(x.text)}</pre>`; } catch (err) { document.getElementById('taskcard').innerHTML = `<div class="msg bad">${e(err.message)}</div>`; } });
+  } catch (err) { side.innerHTML = `<div class="msg bad">${e(err.message)}</div>`; }
+  document.getElementById('taskdraft').onsubmit = async ev => { ev.preventDefault(); const f = ev.target; const card = document.getElementById('taskcard');
+    card.innerHTML = '<div class="msg">the builder is mapping the goal… minutes</div>';
+    try { const r = await api('POST', '/api/v1/admin/tasks', {id: f.id.value, goal: f.goal.value});
+      card.innerHTML = `<div class="msg ok">created ${e(r.path)}, disabled</div>` + ((r.open_nodes || []).length ? `<h3 style="font-size:13px">the builder could not settle</h3><ul>${r.open_nodes.map(n => `<li><b>${e(n.node)}</b>: ${e(n.question)}</li>`).join('')}</ul>` : '')
+        + ((r.briefs || []).length ? `<h3 style="font-size:13px">sources that need their SQL drafted</h3>${r.briefs.map(b => `<p><b>${e(b.source)}</b>: ${e(b.brief)} <button type="button" class="quiet" data-research="${e(b.brief)}">research it</button></p>`).join('')}` : '')
+        + '<p class="foot">then edit the Sources in the task and save — your commit is the ratification — and enable it.</p>';
+      card.querySelectorAll('[data-research]').forEach(b => b.onclick = () => { document.querySelector('#digform textarea').value = b.dataset.research; location.hash = 'research'; show('research'); });
+      f.reset(); TK.current = r.id; loadTasks(); }
+    catch (err) { card.innerHTML = `<div class="msg bad">${e(err.message)}</div>`; } };
+}
+async function openTask(id) {
+  const card = document.getElementById('taskcard');
+  try {
+    const [t, f, o] = await Promise.all([api('GET', `/api/v1/admin/tasks/${id}`), api('GET', `/api/v1/admin/tasks/${id}/file`), api('GET', `/api/v1/admin/tasks/${id}/outcomes`)]);
+    const outs = Array.isArray(o) ? o : (o.outcomes || []);
+    const say = (ok, html) => document.getElementById('taskmsg').innerHTML = `<div class="msg ${ok ? 'ok' : 'bad'}">${html}</div>`;
+    card.innerHTML = `<div class="row"><h2 style="margin:0">${e(t.title || id)} <span class="pill ${t.enabled ? 'ok' : ''}">${t.enabled ? 'enabled' : 'disabled'}</span>${t.due && t.enabled ? ' <span class="pill warn">due</span>' : ''}</h2>
+        <span class="foot">${e(t.schedule)} · ${e(t.sector || '')} · last run ${e((t.last_run || 'never').slice(0, 16))}</span>
+        <span class="right row"><button type="button" class="quiet" id="tk-toggle">${t.enabled ? 'disable' : 'enable'}</button><button type="button" id="tk-run">run now</button></span></div>
+      <div id="taskmsg"></div>
+      <div class="row" style="align-items:flex-start;margin-top:10px">
+        <div style="flex:1"><h2>Status</h2><pre>${e((t.bodies && t.bodies.Status) || t.status || '—')}</pre><h2>Next steps</h2><pre>${e((t.bodies && t.bodies['Next steps']) || t.next || '—')}</pre></div>
+        <div style="flex:1"><h2>Outcomes</h2>${outs.length ? `<table><tr><th>when</th><th>ok</th><th>brief</th></tr>${outs.slice(0, 12).map(x => `<tr><td>${e(x.stamp)}</td><td>${x.ok ? '✓' : '✗'}</td><td class="foot">${e(x.brief)}</td></tr>`).join('')}</table>` : '<p class="foot">no runs yet</p>'}
+          <h2>Run log</h2><pre>${e((t.bodies && t.bodies['Run log']) || t.run_log || '—')}</pre></div></div>
+      <h2 style="margin-top:14px">Definition, sources, checklist <span class="foot">yours — saving commits under your name, which is the ratification</span></h2>
+      <form id="tk-edit"><label>Definition</label><textarea name="Definition" rows="6" style="font-family:Menlo,Consolas,monospace;font-size:12px">${e(f.human.Definition)}</textarea>
+        <label>Sources (one read-only SQL statement each)</label><textarea name="Sources" rows="10" style="font-family:Menlo,Consolas,monospace;font-size:12px">${e(f.human.Sources)}</textarea>
+        <label>Checklist</label><textarea name="Checklist" rows="4" style="font-family:Menlo,Consolas,monospace;font-size:12px">${e(f.human.Checklist)}</textarea>
+        <div class="row" style="margin-top:8px"><input name="message" placeholder="what changed (the commit message)" autocomplete="off" data-1p-ignore style="flex:1"><button>Save and ratify</button></div></form>
+      <div id="tk-actions" style="margin-top:14px"></div>`;
+    document.getElementById('tk-edit').onsubmit = async ev => { ev.preventDefault(); const fm = ev.target;
+      try { const r = await api('PUT', `/api/v1/admin/tasks/${id}/file`, {human: {Definition: fm.Definition.value, Sources: fm.Sources.value, Checklist: fm.Checklist.value}, message: fm.message.value});
+        say(true, `saved ${e(r.written.join(', '))}${r.commit ? ` — committed ${e(r.commit.slice(0, 8))}` : ' — nothing new to commit'}`); } catch (err) { say(false, e(err.message)); } };
+    document.getElementById('tk-toggle').onclick = async () => { try { const r = await api('PUT', `/api/v1/admin/tasks/${id}/enabled`, {enabled: !t.enabled}); say(true, `${r.enabled ? 'enabled' : 'disabled'}${r.commit ? ` — committed ${e(r.commit.slice(0, 8))}` : ''}`); loadTasks(); openTask(id); } catch (err) { say(false, e(err.message)); } };
+    document.getElementById('tk-run').onclick = async () => { say(true, 'running: the SQL, then the narrative, then a digest… minutes'); try { const r = await api('POST', `/api/v1/admin/tasks/${id}/run`); say(r.exit === 0, `exit ${r.exit}${r.digest ? ` — digest ${e(r.digest)}` : ''}${r.exit ? `<pre>${e(r.stderr || '')}</pre>` : ''}`); loadTasks(); openTask(id); } catch (err) { say(false, e(err.message)); } };
+    try { const a = await api('GET', `/api/v1/admin/tasks/${id}/actions`); const surfaces = a.surfaces || [];
+      document.getElementById('tk-actions').innerHTML = surfaces.map(s => { const sc = s.schema, items = s.items || []; const cols = items.length ? Object.keys(items[0].context || {}) : [];
+        return `<h2>Action queue · ${e(sc.surface)} <span class="foot">${items.filter(i => !i.last_outcome).length} open of ${items.length} · outcomes: ${e((sc.outcomes || []).join(' | ') || 'free-form')}</span></h2>` + (items.length ? `<table><tr><th>ref</th>${cols.map(c => `<th>${e(c)}</th>`).join('')}<th>last outcome</th><th></th></tr>${items.slice(0, 50).map(i => `<tr><td><code>${e(i.ref)}</code></td>${cols.map(c => `<td>${e(i.context[c])}</td>`).join('')}<td>${e(i.last_outcome || '—')}</td><td class="row">${(sc.outcomes || []).map(o => `<button type="button" class="quiet" data-rec="${e(i.ref)}" data-out="${e(o)}" data-on="${e(sc.surface)}">${e(o)}</button>`).join('')}</td></tr>`).join('')}</table>` : '<p class="foot">no queue — run the task first, or declare a ref on a record source</p>'); }).join('');
+      document.querySelectorAll('[data-rec]').forEach(b => b.onclick = async () => { try { await api('POST', `/api/v1/admin/tasks/${id}/record`, {ref: b.dataset.rec, outcome: b.dataset.out, on: surfaces.length > 1 ? b.dataset.on : undefined}); say(true, `recorded ${e(b.dataset.out)} on ${e(b.dataset.rec)}`); openTask(id); } catch (err) { say(false, e(err.message)); } });
+    } catch (_) { document.getElementById('tk-actions').innerHTML = ''; }
+  } catch (err) { card.innerHTML = `<div class="msg bad">${e(err.message)}</div>`; }
 }
 // ---- memory ----
 async function loadMemory() {

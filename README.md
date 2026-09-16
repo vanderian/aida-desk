@@ -24,6 +24,15 @@ Both stay in the browser tab.
   chosen up to the deployment's limit. It opens a thread like any question.
 - **History**: your past questions from the labor ledger, each opening
   the answer as the engine wrote it.
+- **Tasks**: recurring digests. A task is a file in your workspace with
+  a definition, ratified read-only SQL sources and a checklist, all yours
+  by commit; the engine runs the SQL on schedule, narrates the rows, and
+  a digest lands. On the page: the list with schedule and due state, a
+  task's status, next steps, outcomes and run log, run now, enable and
+  disable, the human sections as text with "save and ratify", which
+  commits under your name, the action queue with outcomes to record, the
+  digests, and drafting a task from a goal in your words. Any answered
+  thread offers "make this a recurring task".
 - **Memory**: what the engine learned about the *shape* of your data,
   never a value. Proposals wait for your review with an advisory
   `content?` flag from a reader and the page the judge suggests. Apply
@@ -65,6 +74,13 @@ headers: `Authorization: Bearer <admin key>` and `X-Actor: <name>`.
 | `GET  /api/v1/admin/integrations` | your integrations, and the provisioned ones |
 | `POST /api/v1/admin/integrations` `{name}` | mint one; the key comes back once |
 | `DELETE /api/v1/admin/integrations/{name}` | revoke it |
+| `GET  /api/v1/admin/tasks` | every task with schedule, enabled, last run, due |
+| `POST /api/v1/admin/tasks` `{id, goal}` | draft a task from a goal; the builder writes it disabled |
+| `GET  /api/v1/admin/tasks/{id}` · `/outcomes` · `/file` · `/actions` | the card, the outcome trail, the file with its human sections, the action queue |
+| `PUT  /api/v1/admin/tasks/{id}/file` `{human, message}` | write the human sections; validated by the engine, committed under you |
+| `PUT  /api/v1/admin/tasks/{id}/enabled` `{enabled}` | the switch, committed |
+| `POST /api/v1/admin/tasks/{id}/run` · `/record` `{ref, outcome, note?}` | run it now; record an outcome on a queue item |
+| `GET  /api/v1/admin/digests` · `/digests/{stamp}` | the digests |
 | `GET  /api/v1/admin/monitor?days=` | the tenant's collection: summary, incidents, in flight, memory, git, sources, the operator's trail |
 | `GET  /api/v1/admin/monitor/rows?days=&limit=&what=` | the rows behind it: runs, incidents, in flight |
 | `POST /api/v1/conversations/{uid}/messages` `{text, actor, client_msg_id, thread_ref?, mode?, loop?}` | ask; `thread_ref` continues a thread, `mode: dig` with `loop` is research. 409 when the thread has a question in flight, 429 at the conversation's cap. No commands: a slash or a prefix is refused |
